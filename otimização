@@ -1,0 +1,49 @@
+from cmath import log
+from ctypes.wintypes import SIZE
+from platform import python_implementation
+from turtle import mode, width
+import numpy as np
+import pandas as pd
+from pandas_datareader import data as dr
+import matplotlib.pyplot as plt
+import plotly.graph_objects as go
+from tqdm import tqdm
+import plotly
+
+
+ativos = ['BBAS3.SA','BPAC11.SA','GGBR4.SA','EQTL3.SA','ITUB4.SA']
+pd_data = pd.DataFrame()
+for ativo in ativos:
+    pd_data[ativo] = dr.DataReader(ativo,data_source = 'yahoo',start = '2018-1-5')['Adj Close']
+
+(pd_data / pd_data.iloc[0] * 100).plot(figsize=(10,5))
+
+log_retornos = np.log(pd_data/pd_data.shift(1))
+
+log_retornos.mean() * 250
+log_retornos.cov() * 250
+log_retornos.corr()
+
+num_ativos = len(ativos)
+pesos = np.random.random(num_ativos)
+pesos /= np.sum(pesos)
+
+np.sum(pesos * log_retornos.mean()) * 250
+np.dot(pesos.T,np.dot(log_retornos.cov()*250,pesos))
+np.sqrt(np.dot(pesos.T,np.dot(log_retornos.cov()*250,pesos)))
+
+return_port = []
+vol_port = []
+pesos = []
+
+for x in range (30000):
+    pesos = np.random.random(num_ativos)
+    pesos /= np.sum(pesos)
+    return_port.append(np.sum(pesos * log_retornos.mean())*250)
+    vol_port.append(np.sqrt(np.dot(pesos.T,np.dot(log_retornos.cov()*250,pesos))))
+
+return_port = np.array(return_port)
+vol_port = np.array(vol_port)
+
+portifolio = pd.DataFrame({'Retorno':return_port,'Volatilidade':vol_port,})
+print(portifolio)
