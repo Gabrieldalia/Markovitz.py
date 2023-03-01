@@ -1,0 +1,113 @@
+# Importando Bibliotecas 
+from pandas_datareader import data as pdr
+from datetime import date 
+import yfinance as yf
+yf.pdr_override()
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np 
+
+# Montando uma função que tem como imput 5 ativos , seus determinados pesos , e o período de análise dos dadaos 
+# e como output métricas de risco dessa carteira 
+def risco (asset1,asset2,asset3,asset4,asset5,p1,p2,p3,p4,p5,inicio,fim):
+
+# Escolhendo Ativos , coletando dados e formando um dataframe 
+ ativos = [asset1,asset2,asset3,asset4,asset5]
+ df = pdr.DataReader(ativos,data_source='yahoo',start= inicio,end = fim)['Adj Close']
+ df= (df/(df.shift(1)))-1
+ df['Carteira'] = (df[asset1] * p1) + (df[asset2] * p2) + (df[asset3] * p3) + (df[asset4] * p4) + (df[asset5] * p5) 
+ df = df.dropna(False)
+
+
+# Obtendo primeiras métricas como desvio padrão , variância e correlação 
+ desvpad = (df['Carteira'].std()) * (252**0.5)
+ variancia = (desvpad **2) * (252**0.5)  
+ corre = df.corr()
+
+# Definindo o peso de cada dado para variância ewma e posteriormente encontrando tal variância
+ l = len(df)
+ df['x'] = list(range(l))
+ df['fewma'] = (df['Carteira'] - df['Carteira']) + 0.6
+ df['1-fewma'] = (df['Carteira'] - df['Carteira']) + (1-0.6)
+ df['x'] = (df['x']-(l-1)) * -1
+ df['peso'] = df['fewma'] * (df['1-fewma']**df['x'])
+ df['ewma'] = df['Carteira'] * df['peso'] 
+ ewma = (df['ewma'].std()) * l
+ varewma = (ewma **2) * (252**0.5)
+
+# Obtendo métricas de stress como var e cvar 
+ dr = df['Carteira']
+ var = dr.quantile(.05)
+ sharpe = dr.mean()/desvpad
+ dr = dr.sort_values()
+ dr.reset_index(inplace=True,drop=True)
+ dr.index = dr.index.set_names([''])
+ dr = dr.rename(index=lambda x: x+1)
+ g = round(l*0.1)
+ ds = dr[1:g]
+ cvar = ds.mean()
+
+# Encontrando a maior perda possível da carteira no período , máximo drawdown
+ dg = pdr.DataReader(ativos,data_source='yahoo',start= inicio,end = fim)['Adj Close']
+ dg['Carteira'] = (dg[asset1] * p1) + (dg[asset2] * p2) + (dg[asset3] * p3) + (dg[asset4] * p4) + (dg[asset5] * p5) 
+ dg = (dg/dg.iloc[0]) * 100
+ dg = dg['Carteira']
+ picos = dg.cummax()
+ drdw = (dg-picos)/picos
+ dt = drdw.sort_values()
+ maxdrwd = dt.iloc[0]
+
+# Realizando uma comparação dos resultados da carteira e do benchmark que nesse caso foi o 'BOVA11'
+ ativos2 = [asset1,asset2,asset3,asset4,asset5,'BOVA11.SA']
+ dk = pdr.DataReader(ativos2,data_source='yahoo',start= inicio,end = fim)['Adj Close']
+ dk['Carteira'] = (dk[asset1] * p1) + (dk[asset2] * p2) + (dk[asset3] * p3) + (dk[asset4] * p4) + (dk[asset5] * p5) 
+ dk = (dk/dk.shift(1))-1
+ dk = dk.dropna(False)
+ dv = dk[['Carteira','BOVA11.SA']]
+ cov1 = dv.cov()
+ cov1 = cov1['Carteira'][1]
+ varb = (dk['BOVA11.SA'].std())**2
+ beta = cov1/varb
+
+# Curva de capital da carteira comparada a curva de capital do Ibovespa no período 
+ ativos3 = [asset1,asset2,asset3,asset4,asset5,'BOVA11.SA']
+ dq = pdr.DataReader(ativos3,data_source='yahoo',start= inicio,end = fim)['Adj Close']
+ dq['Carteira'] = (dq[asset1] * p1) + (dq[asset2] * p2) + (dq[asset3] * p3) + (dq[asset4] * p4) + (dq[asset5] * p5) 
+ dq = (dq/dq.iloc[0])*100
+ dq = dq[['Carteira','BOVA11.SA']]
+
+# Mostrando resultados 
+ print('Matriz de Correlação')
+ print(corre)
+ print('  ')
+ print('  ')
+ print('Desvio Padrão da Carteira')
+ print(desvpad)
+ print('  ')
+ print('  ')
+ print('Variância da Carteira')
+ print(variancia)
+ print('  ')
+ print('  ')
+ print('Variancia EWMA')
+ print(varewma)
+ print('  ')
+ print('  ')
+ print('Maximo Drawdown')
+ drdw.plot();plt.show()
+ print(maxdrwd)
+ print('  ')
+ print('  ')
+ print('Value at Risk')
+ print(var)
+ print('  ')
+ print('  ')
+ print('Cvar')
+ print(cvar)
+ print('  ')
+ print('  ')
+ print('Beta')
+ print(beta)
+ dq.plot();plt.show()
+
+risco('EQTL3.SA','PETR4.SA','VALE3.SA','BPAC11.SA','BBAS3.SA',0.6,0.1,0.1,0.1,0.1,'2018-1-1','2022-1-1')
